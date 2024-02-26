@@ -27,7 +27,7 @@ repositories {
 
 dependencies {
     implementation("dev.akif:periodik-core:0.0.1")
-    implementation("dev.akif:periodik-slf4j:0.0.1")
+    implementation("dev.akif:periodik-slf4j:0.1.0")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
