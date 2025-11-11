@@ -2,7 +2,7 @@ package dev.akif.exchangerates
 
 import dev.akif.periodik.Schedule
 import dev.akif.periodik
-import dev.akif.periodik.loggingWithSlf4j
+import dev.akif.periodik.logBySlf4j
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -21,30 +21,15 @@ class Service(
         private val log: Logger = LoggerFactory.getLogger(Service::class.java)
     }
 
-    private val currencies: Set<String> by periodik()
-        .on(Schedule.every(1.days))
-        .loggingWithSlf4j()
-        .buildSuspending { currencyRepository.all() }
+    private val currencies by periodik<Set<String>>(Schedule.every(1.days))
+        .logBySlf4j(log)
+        .build { currencyRepository.all() }
 
-    private val rates: Map<String, Map<String, Double>> by periodik()
-        .on(Schedule.every(5.seconds))
+    private val rates by periodik<Map<String, Map<String, Double>>>(Schedule.every(5.seconds))
         .initializeLazily()
-        .loggingWithSlf4j()
+        .logBySlf4j(log)
         .buildSuspending {
-            val supportedCurrencies = currencies
-            val ratesForAll = coroutineScope {
-                supportedCurrencies.map { c ->
-                    async {
-                        val ratesForCurrency = rateApi.ratesFor(c).filterKeys { supportedCurrencies.contains(it) }
-                        c to ratesForCurrency
-                    }
-                }
-            }.awaitAll()
-
-            ratesForAll.associateBy(
-                keySelector = { (currency, _) -> currency },
-                valueTransform = { (_, ratesForCurrency) -> ratesForCurrency }
-            )
+            loadRates()
         }
 
     suspend fun get(from: String, to: String): ExchangeRate? =
@@ -63,5 +48,22 @@ class Service(
             return false
         }
         return true
+    }
+
+    private suspend fun loadRates(): Map<String, Map<String, Double>> {
+        val supportedCurrencies = currencies
+        val ratesForAll = coroutineScope {
+            supportedCurrencies.map { c ->
+                async {
+                    val ratesForCurrency = rateApi.ratesFor(c).filterKeys { supportedCurrencies.contains(it) }
+                    c to ratesForCurrency
+                }
+            }
+        }.awaitAll()
+
+        return ratesForAll.associateBy(
+            keySelector = { (currency, _) -> currency },
+            valueTransform = { (_, ratesForCurrency) -> ratesForCurrency }
+        )
     }
 }
